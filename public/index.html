@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quét QR Đăng ký</title>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center">
+  <div class="bg-white shadow-lg rounded-lg p-8 w-full max-w-md">
+    <h2 class="text-2xl font-bold text-center mb-4">THÔNG TIN ĐĂNG KÝ</h2>
+    <div id="qr-reader" class="mb-4"></div>
+
+    <!-- Các label + textbox -->
+    <div id="info-result" class="hidden mt-4 space-y-2">
+      <div class="grid grid-cols-3 gap-2 items-center hidden">
+        <label for="ma" class="font-medium">Mã:</label>
+        <input id="ma" class="col-span-2 border p-2 rounded w-full" readonly>
+      </div>
+      <!-- <div class="grid grid-cols-3 gap-2 items-center">
+        <label for="ngaytao" class="font-medium">Ngày tạo:</label>
+        <input id="ngaytao" class="col-span-2 border p-2 rounded w-full" readonly>
+      </div> -->
+      <div class="grid grid-cols-3 gap-2 items-center">
+        <label for="hoten" class="font-medium">Họ tên:</label>
+        <input id="hoten" class="col-span-2 border p-2 rounded w-full" readonly>
+      </div>
+      <div class="grid grid-cols-3 gap-2 items-center">
+        <label for="sdt" class="font-medium">SĐT:</label>
+        <input id="sdt" class="col-span-2 border p-2 rounded w-full" readonly>
+      </div>
+      <div class="grid grid-cols-3 gap-2 items-center">
+        <label for="cccd" class="font-medium">CCCD:</label>
+        <input id="cccd" class="col-span-2 border p-2 rounded w-full" readonly>
+      </div>
+      <div class="grid grid-cols-3 gap-2 items-center">
+        <label for="chucvu" class="font-medium">Chức vụ:</label>
+        <input id="chucvu" class="col-span-2 border p-2 rounded w-full" readonly>
+      </div>
+      <div class="grid grid-cols-3 gap-2 items-center">
+        <label for="congty" class="font-medium">Công ty:</label>
+        <input id="congty" class="col-span-2 border p-2 rounded w-full" readonly>
+      </div>
+      <div class="grid grid-cols-3 gap-2 items-center">
+        <label for="bienso" class="font-medium">Biển số:</label>
+        <input id="bienso" class="col-span-2 border p-2 rounded w-full">
+      </div>
+      <div class="grid grid-cols-3 gap-2 items-center">
+        <label for="ndlv" class="font-medium">Nội dung làm việc:</label>
+        <input id="ndlv" class="col-span-2 border p-2 rounded w-full">
+      </div>
+      <div class="text-center">
+        <button onclick="updateExtraFields()" class="bg-blue-600 text-white px-4 py-2 rounded mt-2">
+          Cập nhật thông tin
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal thông báo -->
+  <div id="popup-notfound" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+    <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+      <h3 class="text-xl font-bold mb-2">Không tìm thấy mã!</h3>
+      <p class="mb-4">Mã QR không tồn tại trong hệ thống.</p>
+      <button onclick="closePopup()" class="bg-purple-600 text-white px-4 py-2 rounded">Đóng</button>
+    </div>
+  </div>
+
+  <script>
+    function closePopup() {
+      document.getElementById("popup-notfound").classList.add("hidden");
+    }
+
+    function onScanSuccess(decodedText) {
+      console.log("Mã QR: " + decodedText);
+      fetch(`http://localhost:3000/api/check-code?code=${decodedText}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.found) {
+            document.getElementById("info-result").classList.remove("hidden");
+            document.getElementById("ma").value = data.data.Ma || "";
+            //document.getElementById("ngaytao").value = data.data.NgayTao || "";
+            document.getElementById("hoten").value = data.data.HoTen || "";
+            document.getElementById("sdt").value = data.data.SoDienThoai || "";
+            document.getElementById("cccd").value = data.data.CCCD_HoChieu || "";
+            document.getElementById("chucvu").value = data.data.ChucVu || "";
+            document.getElementById("congty").value = data.data.CongTy || "";
+            document.getElementById("bienso").value = data.data.BienSoXe || "";
+            document.getElementById("ndlv").value = data.data.NoiDungLV || "";
+          } else {
+            document.getElementById("popup-notfound").classList.remove("hidden");
+          }
+        })
+        .catch(err => {
+          console.error("Lỗi khi gọi API:", err);
+          alert("Lỗi hệ thống!");
+        });
+    }
+
+    function updateExtraFields() {
+    const ma = document.getElementById("ma").value;
+    const bienso = document.getElementById("bienso").value;
+    const ndlv = document.getElementById("ndlv").value;
+
+    fetch(`http://localhost:3000/api/update-extra`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Ma: ma, BienSoXe: bienso, NoiDungLV: ndlv })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert("Cập nhật thành công!");
+        } else {
+          alert("Cập nhật thất bại!");
+        }
+      })
+      .catch(err => {
+        console.error("Lỗi khi cập nhật:", err);
+        alert("Có lỗi xảy ra khi cập nhật.");
+      });
+      }
+    new Html5QrcodeScanner("qr-reader", { fps: 10, qrbox: 250 }, false).render(onScanSuccess);
+  </script>
+</body>
+</html>

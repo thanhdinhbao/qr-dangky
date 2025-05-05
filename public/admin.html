@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quản trị QR</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <script>
+    async function fetchData() {
+      const res = await fetch('http://localhost:3000/api/all');
+      const data = await res.json();
+      const tbody = document.getElementById("data-body");
+      tbody.innerHTML = "";
+      data.forEach(row => {
+        tbody.innerHTML += `
+          <tr class="border-b">
+            <td class="p-2">${row.Ma}</td>
+            <td class="p-2">${row.HoTen}</td>
+            <td class="p-2">${row.SoDienThoai}</td>
+            <td class="p-2">${row.CongTy}</td>
+            <td class="p-2">${row.NoiDungLV}</td>
+            <td class="p-2 flex gap-2">
+              <button class="bg-yellow-400 px-2 py-1 rounded" onclick='editRow(${JSON.stringify(row)})'>Sửa</button>
+              <button class="bg-red-500 text-white px-2 py-1 rounded" onclick='deleteRow("${row.Ma}")'>Xóa</button>
+              <button class="bg-green-500 text-white px-2 py-1 rounded" onclick='generateQR("${row.Ma}")'>Tạo QR</button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    async function addOrUpdateRow() {
+      const form = document.forms["qr-form"];
+      const body = Object.fromEntries(new FormData(form));
+      const res = await fetch(`http://localhost:3000/api/save`, {
+        method: "POST",
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+        
+      });
+      if (res.ok) {
+        fetchData();
+        form.reset();
+        form.elements['Ma'].readOnly = false;
+      }
+    }
+
+    async function deleteRow(ma) {
+      if (!confirm("Bạn có chắc muốn xóa mã này?")) return;
+      const res = await fetch(`http://localhost:3000/api/delete/${ma}`, { method: "DELETE" });
+      if (res.ok) fetchData();
+    }
+
+    function editRow(data) {
+    const form = document.forms["qr-form"];
+    for (const key in data) {
+        if (form.elements[key]) {
+        if (key === "NgayTao" && data[key]) {
+            const d = new Date(data[key]);
+            const formatted = d.toISOString().slice(0, 10);
+            form.elements[key].value = formatted;
+        } else {
+            form.elements[key].value = data[key];
+        }
+        }
+    }
+    form.elements["Ma"].readOnly = true;
+    }
+
+        window.onload = fetchData;
+
+        function generateQR(ma) {
+        const canvas = document.getElementById("qr-canvas");
+        QRCode.toCanvas(canvas, ma, { width: 200 }, function (error) {
+          if (error) console.error(error);
+          else document.getElementById("qr-popup").classList.remove("hidden");
+        });
+      }
+
+      function closeQR() {
+        document.getElementById("qr-popup").classList.add("hidden");
+      }
+
+  </script>
+</head>
+<body class="bg-gray-100 min-h-screen p-6">
+  <div class="max-w-5xl mx-auto">
+    <h1 class="text-3xl font-bold mb-4">Quản trị mã QR</h1>
+
+    <form name="qr-form" class="bg-white shadow rounded p-4 grid grid-cols-2 gap-4 mb-6">
+      <input name="Ma" placeholder="Mã" class="border p-2 rounded" required>
+      <input name="NgayTao" placeholder="Ngày tạo" class="border p-2 rounded" type="date">
+      <input name="HoTen" placeholder="Họ tên" class="border p-2 rounded">
+      <input name="SoDienThoai" placeholder="SĐT" class="border p-2 rounded">
+      <input name="CCCD_HoChieu" placeholder="CCCD / Hộ chiếu" class="border p-2 rounded">
+      <input name="ChucVu" placeholder="Chức vụ" class="border p-2 rounded">
+      <input name="CongTy" placeholder="Công ty" class="border p-2 rounded">
+      <input name="BienSoXe" placeholder="Biển số xe" class="border p-2 rounded">
+      <input name="NoiDungLV" placeholder="Nội dung làm việc" class="border p-2 rounded">
+      <button type="button" onclick="addOrUpdateRow()" class="col-span-2 bg-blue-600 text-white px-4 py-2 rounded">Lưu</button>
+    </form>
+
+    <table class="w-full bg-white shadow rounded">
+      <thead class="bg-gray-200 text-left">
+        <tr>
+          <th class="p-2">Mã</th>
+          <th class="p-2">Họ tên</th>
+          <th class="p-2">SĐT</th>
+          <th class="p-2">Công ty</th>
+          <th class="p-2">Nội dung</th>
+          <th class="p-2">Hành động</th>
+        </tr>
+      </thead>
+      <tbody id="data-body"></tbody>
+    </table>
+  </div>
+
+  <!-- QR Modal -->
+<div id="qr-popup" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+  <div class="bg-white p-4 rounded shadow-lg text-center">
+    <h2 class="text-xl font-bold mb-2">Mã QR</h2>
+    <canvas id="qr-canvas" class="mx-auto mb-4"></canvas>
+    <button onclick="closeQR()" class="bg-purple-600 text-white px-4 py-2 rounded">Đóng</button>
+  </div>
+</div>
+
+
+</body>
+</html>
