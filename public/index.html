@@ -1,12 +1,16 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Quét QR Đăng ký</title>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <script src="env.js"></script>
+  
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
+
 <body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center">
   <div class="bg-white shadow-lg rounded-lg p-8 w-full max-w-md">
     <h2 class="text-2xl font-bold text-center mb-4">THÔNG TIN ĐĂNG KÝ</h2>
@@ -18,10 +22,6 @@
         <label for="ma" class="font-medium">Mã:</label>
         <input id="ma" class="col-span-2 border p-2 rounded w-full" readonly>
       </div>
-      <!-- <div class="grid grid-cols-3 gap-2 items-center">
-        <label for="ngaytao" class="font-medium">Ngày tạo:</label>
-        <input id="ngaytao" class="col-span-2 border p-2 rounded w-full" readonly>
-      </div> -->
       <div class="grid grid-cols-3 gap-2 items-center">
         <label for="hoten" class="font-medium">Họ tên:</label>
         <input id="hoten" class="col-span-2 border p-2 rounded w-full" readonly>
@@ -50,10 +50,24 @@
         <label for="ndlv" class="font-medium">Nội dung làm việc:</label>
         <input id="ndlv" class="col-span-2 border p-2 rounded w-full">
       </div>
-      <div class="text-center">
-        <button onclick="updateExtraFields()" class="bg-blue-600 text-white px-4 py-2 rounded mt-2">
-          Cập nhật thông tin
-        </button>
+
+      <!-- Check loại khách -->
+      <div class="grid grid-cols-3 gap-2 items-center">
+        <label class="font-medium">Loại khách:</label>
+        <div class="col-span-2 flex gap-4">
+          <label class="inline-flex items-center">
+            <input type="radio" name="type_customer" value="Nội bộ" class="form-radio" checked>
+            <span class="ml-2">Nội bộ</span>
+          </label>
+          <label class="inline-flex items-center">
+            <input type="radio" name="type_customer" value="Khách ngoài" class="form-radio">
+            <span class="ml-2">Khách ngoài</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="text-center mt-2">
+        <button id="check-btn" class="bg-green-600 text-white px-4 py-2 rounded hidden"></button>
       </div>
     </div>
   </div>
@@ -61,8 +75,8 @@
   <!-- Modal thông báo -->
   <div id="popup-notfound" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
     <div class="bg-white p-6 rounded-lg shadow-lg text-center">
-      <h3 class="text-xl font-bold mb-2">Không tìm thấy mã!</h3>
-      <p class="mb-4">Mã QR không tồn tại trong hệ thống.</p>
+      <h3 class="text-xl font-bold mb-2" id="popup-title">Không tìm thấy mã!</h3>
+      <p class="mb-4" id="popup-msg">Mã QR không tồn tại trong hệ thống.</p>
       <button onclick="closePopup()" class="bg-purple-600 text-white px-4 py-2 rounded">Đóng</button>
     </div>
   </div>
@@ -74,13 +88,20 @@
 
     function onScanSuccess(decodedText) {
       console.log("Mã QR: " + decodedText);
-      fetch(`http://localhost:3000/api/check-code?code=${decodedText}`)
+      fetch(`${serverUrl}/api/check-code?code=${decodedText}`)
         .then(res => res.json())
         .then(data => {
           if (data.found) {
+            const hetHan = data.data.HetHan ? new Date(data.data.HetHan).getTime() : null;
+            const now = Date.now();
+            if (hetHan && hetHan < now) {
+              document.getElementById("popup-title").innerText = "Mã đã hết hạn!";
+              document.getElementById("popup-msg").innerText = "Mã QR này không còn hiệu lực.";
+              document.getElementById("popup-notfound").classList.remove("hidden");
+              return;
+            }
             document.getElementById("info-result").classList.remove("hidden");
             document.getElementById("ma").value = data.data.Ma || "";
-            //document.getElementById("ngaytao").value = data.data.NgayTao || "";
             document.getElementById("hoten").value = data.data.HoTen || "";
             document.getElementById("sdt").value = data.data.SoDienThoai || "";
             document.getElementById("cccd").value = data.data.CCCD_HoChieu || "";
@@ -88,7 +109,21 @@
             document.getElementById("congty").value = data.data.CongTy || "";
             document.getElementById("bienso").value = data.data.BienSoXe || "";
             document.getElementById("ndlv").value = data.data.NoiDungLV || "";
+            const checkBtn = document.getElementById("check-btn");
+            if (!data.data.Status || data.data.Status === "") {
+              checkBtn.innerText = "Check In";
+              checkBtn.classList.remove("hidden");
+              checkBtn.onclick = () => updateAllInfo("Check_in");
+            } else if (data.data.Status === "Check_in") {
+              checkBtn.innerText = "Check Out";
+              checkBtn.classList.remove("hidden");
+              checkBtn.onclick = () => updateAllInfo("Check_out");
+            } else {
+              checkBtn.classList.add("hidden");
+            }
           } else {
+            document.getElementById("popup-title").innerText = "Không tìm thấy mã!";
+            document.getElementById("popup-msg").innerText = "Mã QR không tồn tại trong hệ thống.";
             document.getElementById("popup-notfound").classList.remove("hidden");
           }
         })
@@ -98,30 +133,46 @@
         });
     }
 
-    function updateExtraFields() {
-    const ma = document.getElementById("ma").value;
-    const bienso = document.getElementById("bienso").value;
-    const ndlv = document.getElementById("ndlv").value;
-
-    fetch(`http://localhost:3000/api/update-extra`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ Ma: ma, BienSoXe: bienso, NoiDungLV: ndlv })
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          alert("Cập nhật thành công!");
-        } else {
-          alert("Cập nhật thất bại!");
-        }
-      })
-      .catch(err => {
-        console.error("Lỗi khi cập nhật:", err);
-        alert("Có lỗi xảy ra khi cập nhật.");
-      });
-      }
-    new Html5QrcodeScanner("qr-reader", { fps: 10, qrbox: 250 }, false).render(onScanSuccess);
+    function updateAllInfo(statusValue = null) {
+      const ma = document.getElementById("ma").value;
+      const bienso = document.getElementById("bienso").value;
+      const ndlv = document.getElementById("ndlv").value;
+      const type = document.querySelector('input[name="type_customer"]:checked').value;
+      const body = {
+        Ma: ma,
+        BienSoXe: bienso,
+        NoiDungLV: ndlv,
+        Type_Customer: type,
+        Status: statusValue
+      };
+      fetch(`${serverUrl}/api/update-all`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(body)
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            alert("Cập nhật thành công!");
+            document.getElementById("check-btn").classList.add("hidden");
+            onScanSuccess(ma); // Load lại dữ liệu mới nhất
+          } else {
+            alert("Cập nhật thất bại!");
+          }
+        })
+        .catch(err => {
+          console.error("Lỗi cập nhật:", err);
+          alert("Có lỗi xảy ra khi cập nhật.");
+        });
+    }
+    new Html5QrcodeScanner("qr-reader", {
+      fps: 10,
+      qrbox: 250
+    }, false).render(onScanSuccess);
   </script>
+  <script src="script.js"></script>
 </body>
+
 </html>
