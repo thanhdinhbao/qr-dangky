@@ -1,0 +1,30 @@
+.sidebar-button {
+    display: block;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+  }
+  
+  .sidebar-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  .sidebar-button.active {
+    background-color: white;
+    color: black;
+    border-radius: 6px;
+  }
+
+  /* Hiệu ứng trượt cho sidebar */
+.sidebar-transition {
+  transition: transform 0.3s ease;
+}
+
+.sidebar-hidden {
+  transform: translateX(-100%);
+}
+
+table:has(#history-body) th:first-child,
+table:has(#history-body) td:first-child {
+  display: none;
+}
+  

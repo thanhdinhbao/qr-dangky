@@ -1,131 +1,246 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quản trị QR</title>
+  <title>Admin Dashboard</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-  <script src="env.js"></script>
+  <link rel="stylesheet" href="style.css">
   <script>
-    async function fetchData() {
-      const res = await fetch(`${CONFIG.API_BASE_URL}/api/all`);
-      const data = await res.json();
-      const tbody = document.getElementById("data-body");
-      tbody.innerHTML = "";
-      data.forEach(row => {
-        tbody.innerHTML += `
-          <tr class="border-b">
-            <td class="p-2">${row.Ma}</td>
-            <td class="p-2">${row.HoTen}</td>
-            <td class="p-2">${row.SoDienThoai}</td>
-            <td class="p-2">${row.CongTy}</td>
-            <td class="p-2">${row.NoiDungLV}</td>
-            <td class="p-2 flex gap-2">
-              <button class="bg-yellow-400 px-2 py-1 rounded" onclick='editRow(${JSON.stringify(row)})'>Sửa</button>
-              <button class="bg-red-500 text-white px-2 py-1 rounded" onclick='deleteRow("${row.Ma}")'>Xóa</button>
-              <button class="bg-green-500 text-white px-2 py-1 rounded" onclick='generateQR("${row.Ma}")'>Tạo QR</button>
-            </td>
-          </tr>
-        `;
-      });
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('hidden');
     }
-
-    async function addOrUpdateRow() {
-      const form = document.forms["qr-form"];
-      const body = Object.fromEntries(new FormData(form));
-      const res = await fetch(`${CONFIG.API_BASE_URL}/api/save`, {
-        method: "POST",
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-        
-      });
-      if (res.ok) {
-        fetchData();
-        form.reset();
-        form.elements['Ma'].readOnly = false;
-      }
+    if (!localStorage.getItem("admin_token")) {
+      window.location.href = "/login.html";
     }
-
-    async function deleteRow(ma) {
-      if (!confirm("Bạn có chắc muốn xóa mã này?")) return;
-      const res = await fetch(`${CONFIG.API_BASE_URL}/api/delete/${ma}`, { method: "DELETE" });
-      if (res.ok) fetchData();
+    window.onload = () => {
+      fetchRegistrations();
+      showTab('tab-dangky');
+      document.getElementById("filter-from").value = getTodayStr();
+      document.getElementById("filter-to").value = getTodayStr();
+      document.getElementById("stat-from").value = getTodayStr();
+      document.getElementById("stat-to").value = getTodayStr();
+      document.getElementById("cbNgayTao").value = getTodayStr();
     }
-
-    function editRow(data) {
-    const form = document.forms["qr-form"];
-    for (const key in data) {
-        if (form.elements[key]) {
-        if (key === "NgayTao" && data[key]) {
-            const d = new Date(data[key]);
-            const formatted = d.toISOString().slice(0, 10);
-            form.elements[key].value = formatted;
-        } else {
-            form.elements[key].value = data[key];
-        }
-        }
-    }
-    form.elements["Ma"].readOnly = true;
-    }
-
-        window.onload = fetchData;
-
-        function generateQR(ma) {
-        const canvas = document.getElementById("qr-canvas");
-        QRCode.toCanvas(canvas, ma, { width: 200 }, function (error) {
-          if (error) console.error(error);
-          else document.getElementById("qr-popup").classList.remove("hidden");
-        });
-      }
-
-      function closeQR() {
-        document.getElementById("qr-popup").classList.add("hidden");
-      }
-
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/xlsx.mini.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-gray-100 min-h-screen p-6">
-  <div class="max-w-5xl mx-auto">
-    <h1 class="text-3xl font-bold mb-4">Quản trị mã QR</h1>
 
-    <form name="qr-form" class="bg-white shadow rounded p-4 grid grid-cols-2 gap-4 mb-6">
-      <input name="Ma" placeholder="Mã" class="border p-2 rounded" required>
-      <input name="NgayTao" placeholder="Ngày tạo" class="border p-2 rounded" type="date">
-      <input name="HoTen" placeholder="Họ tên" class="border p-2 rounded">
-      <input name="SoDienThoai" placeholder="SĐT" class="border p-2 rounded">
-      <input name="CCCD_HoChieu" placeholder="CCCD / Hộ chiếu" class="border p-2 rounded">
-      <input name="ChucVu" placeholder="Chức vụ" class="border p-2 rounded">
-      <input name="CongTy" placeholder="Công ty" class="border p-2 rounded">
-      <input name="BienSoXe" placeholder="Biển số xe" class="border p-2 rounded">
-      <input name="NoiDungLV" placeholder="Nội dung làm việc" class="border p-2 rounded">
-      <button type="button" onclick="addOrUpdateRow()" class="col-span-2 bg-blue-600 text-white px-4 py-2 rounded">Lưu</button>
-    </form>
+<body class="bg-gray-100 min-h-screen">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-gray-800 text-white p-6">
+      <h2 class="text-2xl font-bold mb-6">Admin Panel</h2>
+      <nav class="space-y-4">
+        <button onclick="showTab('tab-dangky')" class="sidebar-button">Đăng ký làm việc</button>
+        <button onclick="showTab('tab-baocao')" class="sidebar-button">Báo cáo</button>
+        <button onclick="showTab('tab-thongke')" class="sidebar-button">Thống kê</button>
+        <button onclick="showTab('tab-settings')" class="sidebar-button">Settings</button>
+        <button onclick="logoutAdmin()"
+          class="sidebar-button text-red-400 hover:text-red-600 font-semibold">Logout</button>
+      </nav>
+    </aside>
 
-    <table class="w-full bg-white shadow rounded">
-      <thead class="bg-gray-200 text-left">
-        <tr>
-          <th class="p-2">Mã</th>
-          <th class="p-2">Họ tên</th>
-          <th class="p-2">SĐT</th>
-          <th class="p-2">Công ty</th>
-          <th class="p-2">Nội dung</th>
-          <th class="p-2">Hành động</th>
-        </tr>
-      </thead>
-      <tbody id="data-body"></tbody>
-    </table>
+    <!-- Toggle button for mobile -->
+    <button class="fixed top-4 left-4 z-50 bg-gray-800 text-white p-2 rounded md:hidden" onclick="toggleSidebar()">
+      ☰
+    </button>
+
+    <!-- Main content -->
+    <main class="flex-1 p-10 overflow-y-auto">
+      <div id="tab-dangky" class="tab-content">
+        <h1 class="text-3xl font-bold mb-6">Đăng ký làm việc</h1>
+
+        <div class="bg-white shadow rounded p-6 mb-6">
+          <h2 class="text-xl font-semibold mb-4">Thêm/Sửa đăng ký</h2>
+          <form name="reg-form" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="col-span-1 md:col-span-2">
+              <label for="excel-file" class="block mb-1 font-medium">Nhập từ Excel:</label>
+              <div class="flex flex-col md:flex-row items-center gap-2">
+                <input type="file" id="excel-file" accept=".xlsx, .xls"
+                  class="p-2 border rounded w-full md:w-auto flex-1">
+                <button type="button" onclick="importExcel()" class="bg-green-600 text-white px-4 py-2 rounded">
+                  Tải lên
+                </button>
+              </div>
+            </div>
+            <input name="Ma" placeholder="Mã" class="border p-2 rounded w-full" required>
+            <input id="cbNgayTao" name="NgayTao" type="date" placeholder="Ngày tạo" class="border p-2 rounded w-full">
+            <input name="HoTen" placeholder="Họ tên" class="border p-2 rounded w-full">
+            <input name="SoDienThoai" placeholder="SĐT" class="border p-2 rounded w-full">
+            <input name="CCCD_HoChieu" placeholder="CCCD" class="border p-2 rounded w-full">
+            <input name="ChucVu" placeholder="Chức vụ" class="border p-2 rounded w-full">
+            <input name="CongTy" placeholder="Công ty" class="border p-2 rounded w-full">
+            <input name="BienSoXe" placeholder="Biển số xe" class="border p-2 rounded w-full">
+            <input name="NoiDungLV" placeholder="Nội dung làm việc" class="border p-2 rounded w-full">
+            <button type="button" onclick="saveForm()"
+              class="col-span-1 md:col-span-2 bg-blue-600 text-white px-4 py-2 rounded w-full">
+              Lưu
+            </button>
+          </form>
+        </div>
+
+        <div class="bg-white shadow rounded p-6 mb-6">
+          <h2 class="text-xl font-semibold mb-4">Danh sách đăng ký làm việc</h2>
+
+          <!-- Bọc bảng để xử lý tràn trên mobile -->
+          <div class="overflow-x-auto">
+            <table class="min-w-max w-full text-left border">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th class="p-2 cursor-pointer whitespace-nowrap" onclick="toggleSortByMa()">
+                    Mã
+                    <span id="sort-icon">⬍</span>
+                  </th>
+                  <th class="p-2 whitespace-nowrap">Họ tên</th>
+                  <th class="p-2 whitespace-nowrap">CCCD</th>
+                  <th class="p-2 whitespace-nowrap">Công ty</th>
+                  <th class="p-2 whitespace-nowrap">Nội dung</th>
+                  <th class="p-2 whitespace-nowrap">Hết hạn</th>
+                  <th class="p-2 whitespace-nowrap">Hành động</th>
+                </tr>
+              </thead>
+              <tbody id="reg-body" class="text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+        <div id="tab-baocao" class="tab-content hidden">
+          <h1 class="text-3xl font-bold mb-6">Báo cáo Check In / Check Out</h1>
+
+          <!-- Bộ lọc -->
+          <div class="grid grid-cols-1 md:grid-cols-6 gap-4 mb-4">
+            <input id="filter-biensoxe" type="text" oninput="renderHistoryPage()" placeholder="Tìm biển số" class="border rounded p-2">
+
+            <!-- <select id="filter-type" class="border rounded p-2" onchange="renderHistoryPage()">
+              <option value="">Tất cả loại khách</option>
+              <option value="Nội bộ">Nội bộ</option>
+              <option value="Khách ngoài">Khách ngoài</option>
+            </select> -->
+
+            <select id="filter-status" class="border rounded p-2" onchange="renderHistoryPage()">
+              <option value="">Tất cả trạng thái</option>
+              <option value="Check_in">Check In</option>
+              <option value="Check_out">Check Out</option>
+            </select>
+
+            <input id="filter-from" type="date" class="border rounded p-2" onchange="renderHistoryPage()"/>
+            <input id="filter-to" type="date" class="border rounded p-2" onchange="renderHistoryPage()"/>
+            <button onclick="handleExportExcel()" class="bg-green-600 text-white px-4 py-2 rounded w-full">Xuất
+              Excel</button>
+          </div>
+
+          <div class="overflow-x-auto bg-white shadow rounded">
+            <table class="min-w-full text-sm text-left">
+              <thead class="bg-gray-200 text-gray-700">
+                <tr>
+                  <th class="p-3">ID</th>
+                  <th class="p-3">Họ tên</th>
+                  <th class="p-2">Biển số</th>
+                  <th class="p-3">Công ty</th>
+                  <th class="p-3">Trạng thái</th>
+                  <th class="p-3">Thời gian</th>
+                </tr>
+              </thead>
+              <tbody id="history-body"></tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div class="mt-4 flex justify-between items-center">
+            <div></div>
+
+            <div class="flex items-center gap-2">
+              <button id="prev-page" class="bg-gray-300 hover:bg-gray-400 px-3 py-1 rounded">«</button>
+              <span id="page-info" class="font-medium"></span>
+              <button id="next-page" class="bg-gray-300 hover:bg-gray-400 px-3 py-1 rounded">»</button>
+
+              <label class="ml-4 flex items-center gap-1 text-sm text-gray-700">
+                Hiển thị:
+                <select id="page-size" class="border rounded px-2 py-1" onchange="changePageSize()">
+                  <option value="5">5</option>
+                  <option value="10" selected>10</option>
+                  <option value="20">20</option>
+                </select>
+                bản ghi / trang
+              </label>
+            </div>
+          </div>
+
+        </div>
+
+        <div id="tab-thongke" class="tab-content">
+          <h1 class="text-3xl font-bold mb-6">Thống kê Check In / Check Out</h1>
+
+          <div class="flex gap-4 mb-6 items-end">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Từ ngày</label>
+              <input type="date" id="stat-from" class="border p-2 rounded" onchange="fetchStats()">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Đến ngày</label>
+              <input type="date" id="stat-to" class="border p-2 rounded" onchange="fetchStats()">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="bg-green-100 border-l-4 border-green-500 p-6 rounded shadow">
+              <h2 class="text-xl font-semibold text-green-800">Tổng lượt Check In</h2>
+              <p id="total-in" class="text-4xl font-bold mt-2 text-green-700">0</p>
+            </div>
+            <div class="bg-blue-100 border-l-4 border-blue-500 p-6 rounded shadow">
+              <h2 class="text-xl font-semibold text-blue-800">Tổng lượt Check Out</h2>
+              <p id="total-out" class="text-4xl font-bold mt-2 text-blue-700">0</p>
+            </div>
+          </div>
+
+          <div class="bg-white p-6 rounded shadow">
+            <canvas id="checkin-chart" height="120"></canvas>
+          </div>
+        </div>
+
+        <div id="tab-settings" class="tab-content hidden">
+          <h1 class="text-3xl font-bold mb-6">Cài đặt</h1>
+          <div class="mt-4">
+            <label for="server-url" class="block text-sm font-medium text-gray-700 mb-2">URL Server API:</label>
+            <input type="text" id="server-url" class="border border-gray-300 p-2 rounded w-full"
+              placeholder="https://example.com/api">
+            <button onclick="saveServerUrl()" class="mt-3 bg-blue-600 text-white px-4 py-2 rounded">Lưu</button>
+          </div>
+        </div>
+    </main>
   </div>
 
   <!-- QR Modal -->
-<div id="qr-popup" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-  <div class="bg-white p-4 rounded shadow-lg text-center">
-    <h2 class="text-xl font-bold mb-2">Mã QR</h2>
-    <canvas id="qr-canvas" class="mx-auto mb-4"></canvas>
-    <button onclick="closeQR()" class="bg-purple-600 text-white px-4 py-2 rounded">Đóng</button>
+  <div id="qr-popup" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white p-6 rounded shadow-lg text-center w-80">
+      <h2 class="text-xl font-bold mb-4 text-orange-600">Mã QR của bạn</h2>
+
+      <div class="qr-wrapper mb-4">
+        <canvas id="qr-canvas" class="mx-auto"></canvas>
+      </div>
+
+      <!-- Khung chứa thông tin -->
+      <div class="bg-gray-100 rounded py-3 px-2 text-center text-sm font-medium mb-4" id="qr-info">
+        <!-- nội dung sẽ được set bằng JS -->
+      </div>
+
+      <div class="flex justify-center gap-4">
+        <button onclick="saveQRCode()" class="bg-yellow-500 text-white px-4 py-2 rounded">Lưu QR</button>
+        <button onclick="document.getElementById('qr-popup').classList.add('hidden')"
+          class="bg-yellow-400 text-white px-4 py-2 rounded">Quay lại</button>
+      </div>
+    </div>
   </div>
-</div>
 
-
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="script.js"></script>
 </body>
+
 </html>

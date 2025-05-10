@@ -6,8 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Quét QR Đăng ký</title>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-  <script src="env.js"></script>
-  
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 
@@ -110,7 +109,7 @@
             document.getElementById("bienso").value = data.data.BienSoXe || "";
             document.getElementById("ndlv").value = data.data.NoiDungLV || "";
             const checkBtn = document.getElementById("check-btn");
-            if (!data.data.Status || data.data.Status === "") {
+            if (!data.data.Status || data.data.Status === "" || data.data.Status === "Check_out") {
               checkBtn.innerText = "Check In";
               checkBtn.classList.remove("hidden");
               checkBtn.onclick = () => updateAllInfo("Check_in");
